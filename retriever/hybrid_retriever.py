@@ -4,16 +4,22 @@ Hybrid Retriever for DocIntel
 Combines vector retrieval and BM25 retrieval using
 score normalization and weighted ranking.
 """
+from retriever.reranker import CrossEncoderReranker
+
 from config.settings import (
-    HYBRID_VECTOR_WEIGHT,
-    HYBRID_BM25_WEIGHT,
+    VECTOR_TOP_K,
+    BM25_TOP_K,
     HYBRID_TOP_K,
+    MAX_CONTEXT_CHUNKS,
+    HYBRID_VECTOR_WEIGHT,
+    HYBRID_BM25_WEIGHT
 )
 
 class HybridRetriever:
     def __init__(self, vector_index, bm25_retriever):
         self.vector_index = vector_index
         self.bm25_retriever = bm25_retriever
+        self.reranker = CrossEncoderReranker()
 
     def retrieve(self, query: str, k: int = HYBRID_TOP_K):
         """
@@ -37,13 +43,13 @@ class HybridRetriever:
             max_vector_score = 1
 
         for doc, score in vector_results:
-            key = doc.page_content.strip()
+            key = f"{doc.metadata.get('source')}:{doc.metadata.get('page')}:{doc.metadata.get('chunk_index')}"
             vector_scores[key] = score / max_vector_score
             all_docs[key] = doc
 
         ### BM25 scores are implicit — assign rank score
         for rank, doc in enumerate(bm25_results):
-            key = doc.page_content.strip()
+            key = f"{doc.metadata.get('source')}:{doc.metadata.get('page')}:{doc.metadata.get('chunk_index')}"
             bm25_scores[key] = (k - rank) / k
             all_docs[key] = doc
 
@@ -58,6 +64,17 @@ class HybridRetriever:
 
             hybrid_results.append((doc, hybrid_score))
 
+        # sort by hybrid score
         hybrid_results.sort(key=lambda x: x[1], reverse=True)
 
-        return [doc for doc, _ in hybrid_results[:k]]
+        # candidate set before reranking
+        candidate_docs = [doc for doc, _ in hybrid_results[:k]]
+
+        # cross-encoder reranking
+        reranked_docs = self.reranker.rerank(
+            query,
+            candidate_docs,
+            top_k=MAX_CONTEXT_CHUNKS
+        )
+
+        return reranked_docs

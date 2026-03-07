@@ -7,12 +7,12 @@ import sys
 import time
 import json
 import requests
+import streamlit as st
+from dotenv import load_dotenv
 
 # Ensure project root is on path
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
-import streamlit as st
-from dotenv import load_dotenv
 from providers.llm_provider import get_llm_provider
 from evaluation.rag_eval import (
     llm_answer_score,
@@ -25,19 +25,69 @@ load_dotenv()
 API_URL = "http://localhost:8000"
 
 
-# Page config
+# ----------------------------
+# Helpers
+# ----------------------------
+
+def truncate_text(text, max_chars=500):
+    if len(text) <= max_chars:
+        return text
+
+    truncated = text[:max_chars]
+    last_space = truncated.rfind(" ")
+
+    if last_space == -1:
+        return truncated + "..."
+
+    return truncated[:last_space] + "..."
+
+
+def render_chunk(doc, idx=None, preview_chars=400):
+    """Clean chunk display component"""
+
+    source = doc["metadata"].get("source", "unknown")
+    page = doc["metadata"].get("page", "?")
+    chunk_idx = doc["metadata"].get("chunk_index", "?")
+
+    title = f"📄 {source} — Page {page} — Chunk {chunk_idx}"
+
+    if idx is not None:
+        title = f"Chunk {idx} • {title}"
+
+    st.markdown(f"**{title}**")
+
+    preview = truncate_text(doc["page_content"], preview_chars)
+    st.markdown(preview)
+
+    with st.expander("🔎 View full chunk"):
+        st.text_area(
+            "Full chunk text",
+            doc["page_content"],
+            height=250
+        )
+
+    st.caption(f"Source: {source} — page {page}")
+    st.divider()
+
+
+# ----------------------------
+# Page Config
+# ----------------------------
+
 st.set_page_config(page_title="DocIntel", layout="wide")
 
 st.title("📄 DocIntel — Document Intelligence Assistant")
 st.caption("Hybrid RAG • Verification • Source Attribution")
 
 
+# ----------------------------
 # Sidebar — Ingestion
+# ----------------------------
+
 st.sidebar.header("📥 Ingestion")
 
 data_path = st.sidebar.text_input("Document folder", "data/")
 
-# Multi-doc selection
 pdf_files = []
 if os.path.exists(data_path):
     pdf_files = [f for f in os.listdir(data_path) if f.endswith(".pdf")]
@@ -48,20 +98,25 @@ selected_docs = st.sidebar.multiselect(
     default=pdf_files,
 )
 
-# Upload
 uploaded_file = st.sidebar.file_uploader("Upload PDF", type=["pdf"])
 
 if uploaded_file is not None:
     save_path = os.path.join("data", uploaded_file.name)
+
     if not os.path.exists(save_path):
         with open(save_path, "wb") as f:
             f.write(uploaded_file.getbuffer())
+
         st.sidebar.success(f"Saved {uploaded_file.name}")
 
-# Run ingestion via API
-if st.sidebar.button("Run Ingestion"):
-    with st.spinner("Starting ingestion..."):
 
+# ----------------------------
+# Ingestion Trigger
+# ----------------------------
+
+if st.sidebar.button("Run Ingestion"):
+
+    with st.spinner("Starting ingestion..."):
         resp = requests.post(f"{API_URL}/ingest").json()
 
         st.sidebar.info(resp.get("message", "Ingestion started"))
@@ -76,14 +131,15 @@ if st.sidebar.button("Run Ingestion"):
         st.sidebar.success("Index ready")
 
 
-# Reset index
 if st.sidebar.button("Reset Index"):
     requests.post(f"{API_URL}/reset-index")
     st.sidebar.success("Index reset")
 
 
+# ----------------------------
+# API Health
+# ----------------------------
 
-# Session status (API + index)
 try:
     health = requests.get(f"{API_URL}/health").json()
     api_ok = health.get("status") == "ok"
@@ -95,15 +151,18 @@ if api_ok:
 else:
     st.sidebar.error("API not reachable")
 
+
+# ----------------------------
+# Index Status
+# ----------------------------
+
 try:
     status = requests.get(f"{API_URL}/ingestion-status").json()["status"]
 
     if status == "ready":
         st.sidebar.success("Index ready")
-
     elif status == "building":
         st.sidebar.warning("Index building...")
-
     else:
         st.sidebar.warning("Index not built")
 
@@ -111,13 +170,19 @@ except:
     st.sidebar.error("Cannot check index status")
 
 
-# Clear UI session
+# ----------------------------
+# Clear Session
+# ----------------------------
+
 if st.sidebar.button("Clear Session"):
     st.session_state.clear()
     st.sidebar.info("UI session cleared")
 
 
-# Manifest display
+# ----------------------------
+# Manifest
+# ----------------------------
+
 manifest_path = os.path.join("index_store", "manifest.json")
 
 if os.path.exists(manifest_path):
@@ -130,8 +195,13 @@ if os.path.exists(manifest_path):
     st.sidebar.write("Chunks:", manifest["num_chunks"])
     st.sidebar.write("Built:", manifest["timestamp"])
 
-# Query history
+
+# ----------------------------
+# Query History
+# ----------------------------
+
 st.sidebar.markdown("### 🕑 Query History")
+
 if "history" not in st.session_state:
     st.session_state["history"] = []
 
@@ -139,16 +209,21 @@ for q in st.session_state["history"][-5:]:
     st.sidebar.write("•", q)
 
 
-# Query interface
+# ----------------------------
+# Query Interface
+# ----------------------------
+
 st.subheader("🔍 Ask a Question")
 
 query = st.text_input("Enter a question")
 
 if query:
+
     if not st.session_state["history"] or st.session_state["history"][-1] != query:
         st.session_state["history"].append(query)
 
     with st.spinner("Querying API..."):
+
         start = time.time()
 
         resp = requests.post(
@@ -164,37 +239,55 @@ if query:
     verification = resp.get("verification", {})
     sources = resp.get("sources", [])
 
-    
+
+    # ----------------------------
     # Answer
+    # ----------------------------
+
     st.markdown("### ✅ Answer")
     st.write(answer)
 
-    
+
+    # ----------------------------
     # Sources
+    # ----------------------------
+
     st.markdown("### 📌 Sources")
+
     for s in sources:
         st.write(f"- {s}")
 
-    
-    # Context panel
-    with st.expander("View Retrieved Context"):
-        for i, doc in enumerate(documents, start=1):
-            st.markdown(f"**Chunk {i}**")
-            st.write(doc["page_content"][:800])
-            st.caption(
-                f"Source: {doc['metadata'].get('source')} — page {doc['metadata'].get('page')}"
-            )
-            st.divider()
 
-    
+    # ----------------------------
+    # Retrieved Context
+    # ----------------------------
+
+    with st.expander("📚 Retrieved Context (Model Input)"):
+
+        st.text_area(
+            "Context sent to model",
+            context,
+            height=300
+        )
+
+
+    # ----------------------------
     # Verification
+    # ----------------------------
+
     st.markdown("### 🛡 Verification")
+
     st.write(verification)
+
     st.caption(f"⏱ Response time: {latency:.2f}s")
 
-    
-    # Debug panel (grouped by section)
+
+    # ----------------------------
+    # Retrieval Debug Panel
+    # ----------------------------
+
     with st.expander(f"🔎 Retrieval Debug Panel ({len(documents)} chunks)"):
+
         section_groups = {}
 
         for doc in documents:
@@ -202,27 +295,23 @@ if query:
             section_groups.setdefault(section, []).append(doc)
 
         for section, docs in section_groups.items():
-            st.markdown(f"## 📂 Section: {section} ({len(docs)} chunks)")
 
-            for d in docs:
-                col1, col2 = st.columns(2)
+            st.markdown(f"### 📂 Section: {section}")
 
-                with col1:
-                    st.write("**Metadata**")
-                    st.json(d["metadata"])
+            for i, doc in enumerate(docs, start=1):
 
-                with col2:
-                    st.write("**Preview**")
-                    st.write(d["page_content"][:300])
+                render_chunk(doc, idx=i)
 
-                if d["metadata"].get("block_type") == "table":
+                if doc["metadata"].get("block_type") == "table":
                     st.warning("📊 Table Chunk")
 
-                st.divider()
 
-    
-    # Evaluation panel
+    # ----------------------------
+    # Evaluation Metrics
+    # ----------------------------
+
     with st.expander("📈 Evaluation Metrics"):
+
         llm = get_llm_provider()
 
         recall = retrieval_recall_at_k(
@@ -242,6 +331,6 @@ if query:
             context,
         )
 
-        st.write("Retrieval Recall:", recall)
-        st.write("Grounding Score:", grounding)
-        st.write("LLM Evaluation Score:", llm_score)
+        st.metric("Retrieval Recall", recall)
+        st.metric("Grounding Score", grounding)
+        st.metric("LLM Evaluation Score", llm_score)

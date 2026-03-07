@@ -10,7 +10,7 @@ CHUNK_OVERLAP = 100
 # Retrieval
 VECTOR_TOP_K = 5
 BM25_TOP_K = 5
-HYBRID_TOP_K = 5
+HYBRID_TOP_K = 20
 
 # Hybrid scoring weight
 HYBRID_VECTOR_WEIGHT = 0.7
