@@ -23,6 +23,7 @@ def serialize_documents(docs):
 
 @router.post("/query")
 def run_query(req: QueryRequest, workflow=Depends(get_workflow)):
+
     start = time.time()
 
     result = workflow.run(req.query)
@@ -36,4 +37,4 @@ def run_query(req: QueryRequest, workflow=Depends(get_workflow)):
         "context": result.context,
         "documents": serialize_documents(result.documents),
         "latency": latency,
-    }
+        }

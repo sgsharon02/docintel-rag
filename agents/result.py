@@ -1,11 +1,12 @@
-from dataclasses import dataclass
-from typing import List, Any
+from typing import List
+from langchain_core.documents import Document
+from pydantic import BaseModel
 
 
-@dataclass
-class RAGResult:
+class RAGResult(BaseModel):
+
     answer: str
-    context: str
+    verification: str
     sources: List[str]
-    verification: Any
-    documents: List[Any]
+    context: str
+    documents: List[Document]

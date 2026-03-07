@@ -19,3 +19,6 @@ HYBRID_BM25_WEIGHT = 0.3
 
 # Generation
 MAX_CONTEXT_CHUNKS = 5
+
+# Workflow
+MAX_RETRIES = 2

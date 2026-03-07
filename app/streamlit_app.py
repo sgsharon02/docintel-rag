@@ -195,6 +195,13 @@ if os.path.exists(manifest_path):
     st.sidebar.write("Chunks:", manifest["num_chunks"])
     st.sidebar.write("Built:", manifest["timestamp"])
 
+# ----------------------------
+# LangGraph Workflow
+# ----------------------------
+
+if os.path.exists("workflow_graph.png"):
+    st.sidebar.markdown("### LangGraph Workflow")
+    st.sidebar.image("workflow_graph.png", caption="LangGraph Workflow")
 
 # ----------------------------
 # Query History
@@ -207,6 +214,7 @@ if "history" not in st.session_state:
 
 for q in st.session_state["history"][-5:]:
     st.sidebar.write("•", q)
+
 
 
 # ----------------------------
@@ -334,3 +342,4 @@ if query:
         st.metric("Retrieval Recall", recall)
         st.metric("Grounding Score", grounding)
         st.metric("LLM Evaluation Score", llm_score)
+
