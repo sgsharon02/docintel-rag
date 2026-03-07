@@ -47,7 +47,6 @@ Final Answer + Verification Report
 ### Document Ingestion
 
 * PDF ingestion pipeline
-* OCR support for scanned documents (Docling)
 * Metadata extraction (page, section, document source)
 * Custom document-aware chunking
 
@@ -192,7 +191,6 @@ The focus is **reliable document intelligence**, not chatbot features.
 
 * LangGraph
 * LangChain
-* Docling (OCR)
 * ChromaDB / FAISS
 * BM25 retrieval
 * IBM watsonx

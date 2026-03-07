@@ -7,30 +7,34 @@ preserving metadata for traceability and verification.
 
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_core.documents import Document
+from config.settings import CHUNK_SIZE, CHUNK_OVERLAP
 
 
 class DocumentChunker:
-    def __init__(
-        self,
-        chunk_size: int = 800,
-        chunk_overlap: int = 150,
-    ):
+
+    def __init__(self):
+
         self.splitter = RecursiveCharacterTextSplitter(
-            chunk_size=chunk_size,
-            chunk_overlap=chunk_overlap,
+            chunk_size=CHUNK_SIZE,
+            chunk_overlap=CHUNK_OVERLAP,
+            separators=[
+                "\n\n",
+                "\n",
+                ". ",
+                " ",
+            ],
         )
 
     def chunk_documents(self, documents):
-        """
-        Split page-level documents into smaller chunks.
-        Preserve page metadata.
-        """
+
         chunked_docs = []
 
         for doc in documents:
+
             splits = self.splitter.split_text(doc.page_content)
 
             for i, chunk in enumerate(splits):
+
                 chunk_doc = Document(
                     page_content=chunk,
                     metadata={

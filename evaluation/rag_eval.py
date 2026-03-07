@@ -4,7 +4,6 @@ RAG Evaluation Utilities for DocIntel
 
 from typing import List
 
-### Retrieval Recall@k
 def retrieval_recall_at_k(
     retrieved_docs: List,
     expected_keywords: List[str],
@@ -14,17 +13,25 @@ def retrieval_recall_at_k(
     checks whether expected keywords appear in retrieved documents.
     """
 
-    combined_text = " ".join([doc.page_content.lower() for doc in retrieved_docs]).lower()
+    texts = []
 
-    hits = 0
-    for keyword in expected_keywords:
-        if keyword.lower() in combined_text:
-            hits += 1
+    for doc in retrieved_docs:
+        if isinstance(doc, dict):
+            texts.append(doc.get("page_content", ""))
+        else:
+            texts.append(getattr(doc, "page_content", ""))
+
+    combined_text = " ".join(texts).lower()
+
+    hits = sum(
+        1 for keyword in expected_keywords
+        if keyword.lower() in combined_text
+    )
 
     if not expected_keywords:
         return 0.0
-    return hits / len(expected_keywords)
 
+    return hits / len(expected_keywords)
 
 ### Grounding Check
 def answer_grounded(answer: str, context: str):

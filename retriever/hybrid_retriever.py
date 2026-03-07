@@ -4,13 +4,18 @@ Hybrid Retriever for DocIntel
 Combines vector retrieval and BM25 retrieval using
 score normalization and weighted ranking.
 """
+from config.settings import (
+    HYBRID_VECTOR_WEIGHT,
+    HYBRID_BM25_WEIGHT,
+    HYBRID_TOP_K,
+)
 
 class HybridRetriever:
     def __init__(self, vector_index, bm25_retriever):
         self.vector_index = vector_index
         self.bm25_retriever = bm25_retriever
 
-    def retrieve(self, query: str, k: int = 5):
+    def retrieve(self, query: str, k: int = HYBRID_TOP_K):
         """
         Retrieve documents using hybrid retrieval.
         """
@@ -49,7 +54,7 @@ class HybridRetriever:
             v_score = vector_scores.get(key, 0)
             b_score = bm25_scores.get(key, 0)
 
-            hybrid_score = 0.7 * v_score + 0.3 * b_score
+            hybrid_score = (HYBRID_VECTOR_WEIGHT * v_score    + HYBRID_BM25_WEIGHT * b_score)
 
             hybrid_results.append((doc, hybrid_score))
 

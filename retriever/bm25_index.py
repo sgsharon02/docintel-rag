@@ -6,9 +6,11 @@ Implements keyword-based retrieval using rank-bm25.
 
 from rank_bm25 import BM25Okapi
 import re
+from config.settings import BM25_TOP_K
 
 
 class BM25Retriever:
+
     def __init__(self):
         self.bm25 = None
         self.documents = None
@@ -18,9 +20,7 @@ class BM25Retriever:
         return re.findall(r"\w+", text.lower())
 
     def build(self, documents):
-        """
-        Build BM25 index from chunked documents.
-        """
+
         self.documents = documents
 
         corpus = [doc.page_content for doc in documents]
@@ -28,7 +28,8 @@ class BM25Retriever:
 
         self.bm25 = BM25Okapi(self.tokenized_corpus)
 
-    def retrieve(self, query: str, k: int = 5):
+    def retrieve(self, query: str, k: int = BM25_TOP_K):
+
         if self.bm25 is None:
             raise ValueError("BM25 index not built yet.")
 

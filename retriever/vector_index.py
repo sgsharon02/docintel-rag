@@ -7,7 +7,7 @@ Creates and persists a FAISS vector store from chunked documents.
 import os
 from langchain_community.vectorstores import FAISS
 from providers.embedding_provider import get_embedding_provider
-
+from config.settings import VECTOR_TOP_K
 
 class VectorIndex:
     def __init__(self, index_dir: str = "index_store"):
@@ -53,7 +53,7 @@ class VectorIndex:
 
    
     ### Retriever Interface
-    def as_retriever(self, k: int = 5):
+    def as_retriever(self, k: int = VECTOR_TOP_K):
         if self.vectorstore is None:
             raise ValueError("Vector index not built or loaded.")
 

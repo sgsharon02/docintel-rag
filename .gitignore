@@ -1,1 +1,30 @@
 git 
+
+# Python
+__pycache__/
+*.pyc
+
+# Virtual env
+venv/
+.venv/
+
+# Environment
+.env
+
+# Model caches
+hf_cache/
+.cache/
+
+# Logs
+logs/
+
+# Indexes
+index_store/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
