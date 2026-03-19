@@ -7,8 +7,6 @@ score normalization and weighted ranking.
 from retriever.reranker import CrossEncoderReranker
 
 from config.settings import (
-    VECTOR_TOP_K,
-    BM25_TOP_K,
     HYBRID_TOP_K,
     MAX_CONTEXT_CHUNKS,
     HYBRID_VECTOR_WEIGHT,
@@ -61,7 +59,11 @@ class HybridRetriever:
             b_score = bm25_scores.get(key, 0)
 
             hybrid_score = (HYBRID_VECTOR_WEIGHT * v_score    + HYBRID_BM25_WEIGHT * b_score)
-
+            # attach retrieval scores to metadata
+            doc.metadata["vector_score"] = round(float(v_score), 4)
+            doc.metadata["bm25_score"] = round(float(b_score), 4)
+            doc.metadata["hybrid_score"] = round(float(hybrid_score), 4)
+            
             hybrid_results.append((doc, hybrid_score))
 
         # sort by hybrid score

@@ -8,9 +8,7 @@ import logging
 import sys
 from dotenv import load_dotenv
 load_dotenv()
-# ...existing imports...
 
-# Configure logging before FastAPI app initialization
 logging.basicConfig(
     level=logging.INFO,
     format='[%(levelname)s] %(asctime)s [%(name)s] %(message)s',
@@ -20,7 +18,6 @@ logging.basicConfig(
     ]
 )
 
-# Suppress noisy third-party loggers
 logging.getLogger("rapidocr").setLevel(logging.WARNING)
 logging.getLogger("urllib3").setLevel(logging.WARNING)
 logging.getLogger("httpx").setLevel(logging.WARNING)

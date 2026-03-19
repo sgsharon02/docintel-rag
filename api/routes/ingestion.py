@@ -11,7 +11,7 @@ router = APIRouter()
 def run_ingestion():
     ingestion_state["status"] = "building"
 
-    file_path = Path("data") / "annualreport-2023.pdf"
+    file_path = Path("data")
     pipeline = IngestionPipeline(str(file_path))
     hybrid = pipeline.run()
 

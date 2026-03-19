@@ -27,7 +27,6 @@ class AgentWorkflow:
 
         logger.info("AgentWorkflow initialized successfully")
 
-        # optional graph visualization
         try:
             graph_png = self.graph.get_graph().draw_mermaid_png()
 
