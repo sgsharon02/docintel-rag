@@ -16,7 +16,6 @@ sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 from providers.llm_provider import get_llm_provider
 from evaluation.rag_eval import (
     llm_answer_score,
-    retrieval_recall_at_k,
     answer_grounded,
 )
 
@@ -25,10 +24,7 @@ load_dotenv()
 API_URL = "http://localhost:8000"
 
 
-# ----------------------------
 # Helpers
-# ----------------------------
-
 def truncate_text(text, max_chars=500):
     if len(text) <= max_chars:
         return text
@@ -42,48 +38,63 @@ def truncate_text(text, max_chars=500):
     return truncated[:last_space] + "..."
 
 
-def render_chunk(doc, idx=None, preview_chars=400):
-    """Clean chunk display component"""
+def render_chunk(doc, preview_chars=400):
 
     source = doc["metadata"].get("source", "unknown")
     page = doc["metadata"].get("page", "?")
     chunk_idx = doc["metadata"].get("chunk_index", "?")
+    rank = doc["metadata"].get("rank", "?")
 
-    title = f"📄 {source} — Page {page} — Chunk {chunk_idx}"
-
-    if idx is not None:
-        title = f"Chunk {idx} • {title}"
-
-    st.markdown(f"**{title}**")
+    st.markdown(
+        f"""
+        **🔢 Rank #{rank} — {source} (Page {page}, Chunk {chunk_idx})**
+        """
+    )
 
     preview = truncate_text(doc["page_content"], preview_chars)
     st.markdown(preview)
 
     with st.expander("🔎 View full chunk"):
-        st.text_area(
-            "Full chunk text",
-            doc["page_content"],
-            height=250
-        )
+        st.text_area("Full chunk text", doc["page_content"], height=250)
 
     st.caption(f"Source: {source} — page {page}")
+
+    score_badges = []
+
+    def badge(label, value):
+        return f"`{label}: {value}`"
+
+    if "hybrid_score" in doc["metadata"]:
+        score_badges.append(badge("Hybrid", doc["metadata"]["hybrid_score"]))
+
+    if "rerank_score" in doc["metadata"]:
+        score_badges.append(badge("Rerank", doc["metadata"]["rerank_score"]))
+
+    if "vector_score" in doc["metadata"]:
+        score_badges.append(badge("Vector", doc["metadata"]["vector_score"]))
+
+    if "bm25_score" in doc["metadata"]:
+        score_badges.append(badge("BM25", doc["metadata"]["bm25_score"]))
+
+    if score_badges:
+        st.markdown(" ".join(score_badges))
+
     st.divider()
 
 
-# ----------------------------
 # Page Config
-# ----------------------------
-
 st.set_page_config(page_title="DocIntel", layout="wide")
 
 st.title("📄 DocIntel — Document Intelligence Assistant")
+
+st.caption(
+    "Pipeline: Hybrid Retrieval → Reranker → Research Agent → Verification"
+)
+
 st.caption("Hybrid RAG • Verification • Source Attribution")
 
 
-# ----------------------------
 # Sidebar — Ingestion
-# ----------------------------
-
 st.sidebar.header("📥 Ingestion")
 
 data_path = st.sidebar.text_input("Document folder", "data/")
@@ -110,10 +121,7 @@ if uploaded_file is not None:
         st.sidebar.success(f"Saved {uploaded_file.name}")
 
 
-# ----------------------------
 # Ingestion Trigger
-# ----------------------------
-
 if st.sidebar.button("Run Ingestion"):
 
     with st.spinner("Starting ingestion..."):
@@ -135,11 +143,7 @@ if st.sidebar.button("Reset Index"):
     requests.post(f"{API_URL}/reset-index")
     st.sidebar.success("Index reset")
 
-
-# ----------------------------
 # API Health
-# ----------------------------
-
 try:
     health = requests.get(f"{API_URL}/health").json()
     api_ok = health.get("status") == "ok"
@@ -151,11 +155,7 @@ if api_ok:
 else:
     st.sidebar.error("API not reachable")
 
-
-# ----------------------------
 # Index Status
-# ----------------------------
-
 try:
     status = requests.get(f"{API_URL}/ingestion-status").json()["status"]
 
@@ -169,20 +169,7 @@ try:
 except:
     st.sidebar.error("Cannot check index status")
 
-
-# ----------------------------
-# Clear Session
-# ----------------------------
-
-if st.sidebar.button("Clear Session"):
-    st.session_state.clear()
-    st.sidebar.info("UI session cleared")
-
-
-# ----------------------------
 # Manifest
-# ----------------------------
-
 manifest_path = os.path.join("index_store", "manifest.json")
 
 if os.path.exists(manifest_path):
@@ -195,151 +182,116 @@ if os.path.exists(manifest_path):
     st.sidebar.write("Chunks:", manifest["num_chunks"])
     st.sidebar.write("Built:", manifest["timestamp"])
 
-# ----------------------------
-# LangGraph Workflow
-# ----------------------------
 
+# LangGraph Workflow Image
 if os.path.exists("workflow_graph.png"):
     st.sidebar.markdown("### LangGraph Workflow")
     st.sidebar.image("workflow_graph.png", caption="LangGraph Workflow")
 
-# ----------------------------
-# Query History
-# ----------------------------
 
-st.sidebar.markdown("### 🕑 Query History")
+# Chat Session State
+if "messages" not in st.session_state:
+    st.session_state.messages = []
 
-if "history" not in st.session_state:
-    st.session_state["history"] = []
-
-for q in st.session_state["history"][-5:]:
-    st.sidebar.write("•", q)
+# Render Chat History
+for msg in st.session_state.messages:
+    with st.chat_message(msg["role"]):
+        st.markdown(msg["content"])
 
 
-
-# ----------------------------
-# Query Interface
-# ----------------------------
-
-st.subheader("🔍 Ask a Question")
-
-query = st.text_input("Enter a question")
+# Chat Input
+query = st.chat_input("Ask a question about the documents...")
 
 if query:
 
-    if not st.session_state["history"] or st.session_state["history"][-1] != query:
-        st.session_state["history"].append(query)
+    st.session_state.messages.append({"role": "user", "content": query})
 
-    with st.spinner("Querying API..."):
+    with st.chat_message("user"):
+        st.markdown(query)
 
-        start = time.time()
+    with st.chat_message("assistant"):
 
-        resp = requests.post(
-            f"{API_URL}/query",
-            json={"query": query}
-        ).json()
+        with st.status("Running DocIntel pipeline...", expanded=False) as status:
 
-        latency = time.time() - start
+            start = time.time()
 
-    answer = resp.get("answer", "")
-    documents = resp.get("documents", [])
-    context = resp.get("context", "")
-    verification = resp.get("verification", {})
-    sources = resp.get("sources", [])
+            resp = requests.post(
+                f"{API_URL}/query",
+                json={"query": query}
+            ).json()
 
+            latency = time.time() - start
 
-    # ----------------------------
-    # Answer
-    # ----------------------------
+            status.update(label="Completed", state="complete")
 
-    st.markdown("### ✅ Answer")
-    st.write(answer)
+        answer = resp.get("answer", "")
+        documents = resp.get("documents", [])
+        context = resp.get("context", "")
+        verification = resp.get("verification", {})
+        sources = resp.get("sources", [])
 
+        st.markdown(answer)
 
-    # ----------------------------
-    # Sources
-    # ----------------------------
-
-    st.markdown("### 📌 Sources")
-
-    for s in sources:
-        st.write(f"- {s}")
-
-
-    # ----------------------------
-    # Retrieved Context
-    # ----------------------------
-
-    with st.expander("📚 Retrieved Context (Model Input)"):
-
-        st.text_area(
-            "Context sent to model",
-            context,
-            height=300
+        st.session_state.messages.append(
+            {"role": "assistant", "content": answer}
         )
 
+        # Sources
+        st.markdown("### 📌 Sources")
+        for s in sources:
+            st.write(f"- {s}")
 
-    # ----------------------------
-    # Verification
-    # ----------------------------
+        # Context
+        with st.expander("📚 Retrieved Context (Model Input)"):
+            st.text_area("Context sent to model", context, height=300)
 
-    st.markdown("### 🛡 Verification")
+        # Verification
+        st.markdown("### 🛡 Verification")
+        st.write(verification)
+        st.caption(f"⏱ Response time: {latency:.2f}s")
 
-    st.write(verification)
+        # Debug Panel
+        with st.expander(f"🔎 Retrieval Debug Panel ({len(documents)} chunks)"):
 
-    st.caption(f"⏱ Response time: {latency:.2f}s")
+            for i, doc in enumerate(documents, start=1):
+                doc["metadata"]["rank"] = i
 
+            section_groups = {}
 
-    # ----------------------------
-    # Retrieval Debug Panel
-    # ----------------------------
+            for doc in documents:
+                section = doc["metadata"].get("section", "Unknown Section")
+                section_groups.setdefault(section, []).append(doc)
 
-    with st.expander(f"🔎 Retrieval Debug Panel ({len(documents)} chunks)"):
+            for section, docs in section_groups.items():
 
-        section_groups = {}
+                st.markdown(f"### 📂 Section: {section}")
 
-        for doc in documents:
-            section = doc["metadata"].get("section", "Unknown Section")
-            section_groups.setdefault(section, []).append(doc)
+                for doc in docs:
 
-        for section, docs in section_groups.items():
+                    render_chunk(doc)
 
-            st.markdown(f"### 📂 Section: {section}")
+                    if doc["metadata"].get("block_type") == "table":
+                        st.warning("📊 Table Chunk")
 
-            for i, doc in enumerate(docs, start=1):
+        # Evaluation
+        with st.expander("📈 Evaluation Metrics"):
 
-                render_chunk(doc, idx=i)
+            llm = get_llm_provider()
+            grounding = answer_grounded(answer, context)
+            llm_score = llm_answer_score(llm, query, answer, context)
 
-                if doc["metadata"].get("block_type") == "table":
-                    st.warning("📊 Table Chunk")
+            col1, col2 = st.columns(2)
 
+            with col1:
+                st.metric(
+                    label="Grounding Score",
+                    value=f"{grounding:.2f}"
+                )
+                st.caption("Grounding: how much of the answer is supported by retrieved context.")
 
-    # ----------------------------
-    # Evaluation Metrics
-    # ----------------------------
-
-    with st.expander("📈 Evaluation Metrics"):
-
-        llm = get_llm_provider()
-
-        recall = retrieval_recall_at_k(
-            documents,
-            expected_keywords=["1.05", "1.15"],
-        )
-
-        grounding = answer_grounded(
-            answer,
-            context,
-        )
-
-        llm_score = llm_answer_score(
-            llm,
-            query,
-            answer,
-            context,
-        )
-
-        st.metric("Retrieval Recall", recall)
-        st.metric("Grounding Score", grounding)
-        st.metric("LLM Evaluation Score", llm_score)
-
+            with col2:
+                st.metric(
+                    label="LLM Answer Score",
+                    value=llm_score
+                )
+                st.caption( "LLM Score (1–5): evaluates correctness, completeness, and relevance of the answer.")

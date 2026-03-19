@@ -1,220 +1,264 @@
-# DocIntel — Trust-Aware Multi-Agent RAG for Financial Documents
+# 📄 DocIntel — Trust-Aware RAG for Financial Documents
 
-DocIntel is a **production-oriented Retrieval-Augmented Generation (RAG) system** designed to answer questions from **financial and regulatory documents** with **verification, hallucination detection, and cloud-agnostic AI backends**.
+DocIntel is a **production-oriented Retrieval-Augmented Generation (RAG) system** designed to answer questions from **financial and regulatory documents** with **verification, source attribution, and explainability**.
 
-Unlike naïve document chatbots, DocIntel focuses on **trust, traceability, and reliability** when working with **long, structured PDFs containing tables, disclosures, and risk statements**.
+Unlike naïve document chatbots, DocIntel is designed for:
 
----
-
-## Problem
-
-Large language models struggle with long financial documents because they:
-
-* Hallucinate unsupported claims
-* Misinterpret tables and footnotes
-* Fail on scanned PDFs
-* Provide answers without verification
-* Cannot reliably retrieve numeric disclosures
-
-Financial and regulatory documents require **grounded, auditable answers**, not probabilistic summaries.
-
-DocIntel addresses this by combining **hybrid retrieval, agent workflows, and verification loops**.
+→ **grounded, evidence-backed answers**
+→ **page-level source traceability**  
+→ **automated verification of claims**    
+→ **full retrieval transparency**   
 
 ---
 
-## Architecture Overview
+## 🚨 Problem
 
-DocIntel uses a **multi-agent RAG workflow**:
+Large language models struggle with financial documents because they:
+
+- hallucinate unsupported claims  
+- misinterpret tables and disclosures  
+- fail on long, structured PDFs  
+- provide answers without evidence  
+
+In high-stakes domains like finance, answers must be:
+
+→ **accurate**  
+→ **auditable**  
+→ **verifiable**
+
+---
+
+## 🧠 Architecture
+
+DocIntel uses a structured RAG pipeline:
 
 ```
-User Question
-      ↓
-Scope Agent
-      ↓
-Hybrid Retrieval Agent (Vector + BM25)
-      ↓
-Research Agent (Draft Answer)
-      ↓
-Verification Agent (Fact-Check)
-      ↓
-Final Answer + Verification Report
+
+User Query
+↓
+Hybrid Retrieval (Vector + BM25)
+↓
+Cross-Encoder Reranking
+↓
+Research Agent (LLM)
+↓
+Verification Agent
+↓
+Final Answer + Sources + Verification Report
+
+````
+
+---
+
+## ⚙️ Core Features
+
+### 📥 Document Ingestion
+- PDF ingestion pipeline  
+- Metadata extraction (source, page, section)  
+- Structure-aware chunking with overlap
+
+---
+
+### 🔎 Hybrid Retrieval
+Combines:
+- semantic search (FAISS / embeddings)  
+- keyword search (BM25)  
+
+Improves:
+- numeric lookup  
+- financial disclosures  
+- section-level retrieval  
+
+---
+
+### 🎯 Cross-Encoder Reranking
+- Re-ranks retrieved chunks using deep semantic scoring  
+- Improves precision of top-K results  
+
+---
+
+### 🔁 LangGraph Workflow
+- Structured agent pipeline:
+  - Research → Verification → Retry (if needed)  
+- Enables controlled, reliable reasoning  
+
+---
+
+### 🛡️ Verification Layer
+- Validates whether answer is supported by retrieved context  
+- Detects unsupported claims / hallucinations  
+- Returns structured verification report  
+
+---
+
+### 🔍 Explainable Debug UI
+- Chunk-level inspection  
+- Section grouping  
+- Retrieval scores:
+  - Vector score  
+  - BM25 score  
+  - Hybrid score  
+  - Rerank score  
+
+→ Makes retrieval **transparent and debuggable**
+
+---
+## 🔌 Multi-Provider LLM Architecture
+
+DocIntel is designed with a **provider-agnostic LLM abstraction layer**, allowing seamless switching between different model providers without changing application logic.
+
+Supported providers:
+
+- IBM watsonx (Granite / hosted models)
+- Google Vertex AI (Gemini)
+- Local models via Ollama (llama3)
+- Mock provider (for testing)
+
+The provider is selected via configuration:
+
+```env
+LLM_PROVIDER=llama
 ```
-
 ---
 
-## Core Features
-
-### Document Ingestion
-
-* PDF ingestion pipeline
-* Metadata extraction (page, section, document source)
-* Custom document-aware chunking
-
----
-
-### Hybrid Retrieval
-
-DocIntel combines:
-
-* Vector similarity search
-* BM25 keyword retrieval
-
-This improves:
-
-* Numeric retrieval
-* Disclosure lookups
-* Section-specific queries
-
----
-
-### Multi-Agent Workflow
-
-DocIntel uses four agents:
-
-| Agent              | Responsibility                                      |
-| ------------------ | --------------------------------------------------- |
-| Scope Agent        | Determines if question is answerable from documents |
-| Retrieval Agent    | Fetches relevant chunks                             |
-| Research Agent     | Generates draft answer                              |
-| Verification Agent | Validates claims against sources                    |
-
----
-
-### Verification & Self-Correction
-
-The verification agent:
-
-* Checks answer claims against retrieved text
-* Detects unsupported statements
-* Verifies numeric values
-* Triggers a single retry if needed
-
-If verification fails:
-
-```
-"Not supported by documents."
-```
-
----
-
-### Cloud-Agnostic AI Backends
-
-DocIntel supports interchangeable providers:
-
-* IBM watsonx (Granite / Llama)
-* GCP Vertex AI (Gemini)
-
-The RAG pipeline remains unchanged while swapping model providers via configuration.
-
-This demonstrates **AI infrastructure portability**.
-
----
-
-## Output Format
-
-Each response includes a verification report:
-
-```json
-{
-  "answer": "...",
-  "verification_report": {
-    "supported_claims": [],
-    "unsupported_claims": [],
-    "confidence": 0.0
-  }
-}
-```
-
-This makes the system **auditable and explainable**.
-
----
-
-## Evaluation
+## 📊 Evaluation
 
 DocIntel includes lightweight evaluation:
 
-* Retrieval Recall@K
-* Manual Q&A validation
-* Answer-to-source overlap checks
-
-These provide early signals of **RAG reliability**.
+- **Grounding Score** → how much of the answer is supported by context  
+- **LLM Score (1–5)** → correctness, completeness, and relevance  
 
 ---
 
-## Example Use Cases
+## 🧪 Example Queries
 
-DocIntel is designed for questions like:
-
-* “What were the key liquidity risk factors in 2023?”
-* “Where is CET1 ratio mentioned and what value is reported?”
-* “What assumptions were used for fair value measurement?”
-* “How did credit risk exposure change year-over-year?”
-
-These queries are difficult for naïve RAG systems.
+- “What were the specific quarterly dividend increases for JPMorgan Chase between the third quarter of 2023 and the first quarter of 2024?”  
+- “Where is CET1 ratio mentioned and what value is reported?”  
+- “What are the key liquidity risk factors?”  
 
 ---
 
-## Repository Structure (Planned)
+## 🛠️ Tech Stack
+
+- Python  
+- FastAPI  
+- Streamlit  
+- LangChain  
+- LangGraph  
+- FAISS  
+- BM25 (rank-bm25)  
+- SentenceTransformers (Cross-Encoder)  
+
+LLM Providers:
+- IBM watsonx  
+- Google Vertex AI  
+- Local Ollama (llama3)  
+
+---
+
+## 🚀 Running the Project
+
+### 1. Clone Repository
+
+```bash
+git clone https://github.com/sgsharon02/docintel-rag.git
+cd docintel-rag
+````
+
+---
+
+### 2. Setup Environment
+
+```bash
+python -m venv venv
+venv\Scripts\activate   # Windows
+pip install -r requirements.txt
+```
+
+---
+
+### 3. Configure Environment
+
+Create `.env`:
+
+```env
+LLM_PROVIDER=llama
+EMBEDDING_PROVIDER=local
+LOCAL_LLM_MODEL=llama3
+LOCAL_EMBEDDING_MODEL=all-MiniLM-L6-v2
+```
+
+---
+
+### 4. Start Backend
+
+```bash
+uvicorn api.main:app --reload
+```
+
+---
+
+### 5. Start UI
+
+```bash
+streamlit run app/streamlit_app.py
+```
+
+---
+
+### 6. Ingest Documents
+
+* Place PDFs in `/data`
+* Use UI → “Run Ingestion”
+
+---
+
+### 7. Query
+
+Ask questions in the UI and inspect:
+
+* retrieved chunks
+* scores
+* verification report
+
+---
+
+## 📁 Project Structure
 
 ```
 docintel-rag/
-│
-├── data/
+├── agents/
 ├── ingestion/
 ├── chunking/
 ├── retriever/
-├── agents/
-├── verification/
-├── evaluation/
 ├── providers/
-└── app/
+├── evaluation/
+├── api/
+├── app/
+├── data/
+└── index_store/
 ```
 
 ---
 
-## Non-Goals
+## 🎯 What This Project Demonstrates
 
-DocIntel intentionally does **not** include:
-
-* Financial advice or prediction
-* Real-time trading data
-* Model fine-tuning
-* Autonomous learning systems
-* Multi-user authentication
-* Production deployment infrastructure
-
-The focus is **reliable document intelligence**, not chatbot features.
+* End-to-end RAG system design
+* Hybrid retrieval + reranking
+* Multi-agent workflows (LangGraph)
+* Verification and grounding
+* Explainable AI systems
 
 ---
 
-## Tech Stack
+## 📌 Key Insight
 
-* LangGraph
-* LangChain
-* ChromaDB / FAISS
-* BM25 retrieval
-* IBM watsonx
-* Google Vertex AI
-* Python
+> Generating answers is easy.
+> **Verifying and explaining them is the real challenge.**
 
 ---
 
-## Project Status
+## 👨‍💻 Author
 
-Active development.
-
-Initial milestone:
-
-* Document ingestion
-* Hybrid retrieval
-* Multi-agent workflow
-* Verification loop
-* Cloud-agnostic LLM switching
-
----
-
-## Author
-
-Built as part of an applied AI engineering project exploring **trust-aware RAG systems for high-risk document domains**.
-
----
+Built as an applied AI engineering project focused on
+**trustworthy RAG systems for high-risk document domains.**
