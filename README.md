@@ -208,7 +208,7 @@ streamlit run app/streamlit_app.py
 
 ### 6. Ingest Documents
 
-* Place PDFs in `/data`
+* Upload PDFs to ingest in UI
 * Use UI → “Run Ingestion”
 
 ---
